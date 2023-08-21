@@ -1,4 +1,4 @@
-from pydantic_settings import BaseSettings
+from pydantic_settings import BaseSettings, SettingsConfigDict
 from pydantic import SecretStr
 
 class Settings(BaseSettings):
@@ -7,8 +7,6 @@ class Settings(BaseSettings):
     google_cx: SecretStr
     google_api_key: SecretStr
 
-    class Config:
-        env_file = '.env'
-        env_file_encoding = 'utf-8'
+    model_config = SettingsConfigDict(env_file='.env', env_file_encoding='utf-8')
 
 CONFIG = Settings()

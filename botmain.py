@@ -17,10 +17,8 @@ import imgsearch
 
 BOT_HELP = \
 """
-Отправьте описание картинки, например "жёлтый экскаватор", бот вернёт картинку. 
-Нажимайте кнопку "Следующая", чтобы отобразить следующую картинку.
-
-Отправьте боту картинку, бот вернёт её описание.
+Отправь описание картинки, например "жёлтый экскаватор", бот вернёт картинки (от 1 до 50). 
+Отправь боту картинку, бот вернёт её описание.
 """
 
 BTNS_NUMBER_IMAGES = ['1', '5', '10', '20', '40', '50']
@@ -81,12 +79,12 @@ async def search_images_get_query(message: Message, state: FSMContext):
     await state.clear()
     await state.set_state(MyStates.search_state)
     await state.update_data({'q': message.text})
-    await message.answer('❓ Сколько картинок найти?', 
+    await message.answer(f'❓ Сколько картинок найти (от 1 до {imgsearch.MAX_NUMBER})?', 
                          reply_markup=make_keyboard(BTNS_NUMBER_IMAGES))
     
 @dp.message(MyStates.search_state, F.text.regexp(r'\d+'))
 async def search_images_process_query(message: Message, state: FSMContext, bot: Bot):    
-    async with ChatActionSender.typing(bot=bot, chat_id=message.chat.id):
+    async with ChatActionSender.typing(bot=bot, chat_id=message.chat.id, interval=2.0):
         data = await state.get_data()
         if not 'q' in data:
             await state.clear()
@@ -97,9 +95,11 @@ async def search_images_process_query(message: Message, state: FSMContext, bot: 
 
         q = data['q']
         num = int(message.text)
-        if num > 50:
+        if num > imgsearch.MAX_NUMBER:
             await message.answer(f'⚠ Будет показано не более {imgsearch.MAX_NUMBER} картинок', reply_markup=ReplyKeyboardRemove())
-        await message.answer(f'🔎 Ищу "{q}" в Google ...', 
+        if num > 14:
+            await message.answer(f'⚠ Поиск {num} картинок займет какое-то время ...', reply_markup=ReplyKeyboardRemove())
+        await message.answer(f'🔎 Ищу "{q}" в Google ({num} картинок) ...', 
                                 reply_markup=ReplyKeyboardRemove())
         await send_images(q, int(message.text), message, state)
 
