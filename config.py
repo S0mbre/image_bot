@@ -1,9 +1,11 @@
-from pydantic import BaseSettings, SecretStr
+from pydantic_settings import BaseSettings
+from pydantic import SecretStr
 
 class Settings(BaseSettings):
     bot_token: SecretStr
-    openssl_root: str
-    temp_dir: str
+    bot_name: str
+    google_cx: SecretStr
+    google_api_key: SecretStr
 
     class Config:
         env_file = '.env'
