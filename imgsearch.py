@@ -64,6 +64,7 @@ def search(q: str, num: int = DEFAULT_NUMBER, fileType: str = OPT_FILETYPE, righ
            safe: str = OPT_SAFE, imgType: str = OPT_IMGTYPE, imgSize: str = OPT_IMGSIZE, 
            imgDominantColor: str = OPT_COLOR, imgColorType: str = OPT_COLORTYPE, 
            max_dimension: int = MAX_IMGSIZE) -> list[SimpleImage]:
+    if num < 1: return []
     params = {'q': q, 'num': min(num, MAX_NUMBER), 'fileType': fileType, 'rights': rights, 
               'safe': safe, 'imgType': imgType, 'imgSize': imgSize, 
               'imgDominantColor': imgDominantColor, 'imgColorType': imgColorType}
@@ -97,10 +98,3 @@ def search(q: str, num: int = DEFAULT_NUMBER, fileType: str = OPT_FILETYPE, righ
             finally:
                 my_bytes_io.close()
         return results
-
-# ============================================================ #
-
-if __name__ == '__main__':
-    results = search('страшный ёжик', 2)
-    for res in results:
-        print(str(res))
