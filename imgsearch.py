@@ -3,7 +3,6 @@ from io import BytesIO
 from PIL import Image
 from pydantic import BaseModel
 import logging
-from pathlib import Path
 import mimetypes
 
 from config import CONFIG
@@ -32,13 +31,8 @@ OPT_COLORTYPE = 'imgColorTypeUndefined'
 DEFAULT_NUMBER = 10
 MAX_NUMBER = 50
 MAX_IMGSIZE = 800
-ENC = 'utf-8'
-DEBUG = False
 
 mimetypes.init()
-logging.basicConfig(filename=str(Path(__file__).parent / 'log.log'), filemode='w', style='{',
-                    format='[{asctime}] [{levelname}] {message}', datefmt='%d.%m.%Y %H:%M:%S',
-                    encoding=ENC, level=logging.DEBUG if DEBUG else logging.INFO)
 
 # ============================================================ #
 
@@ -73,7 +67,7 @@ def search(q: str, num: int = DEFAULT_NUMBER, fileType: str = OPT_FILETYPE, righ
         gis = GoogleImagesSearch(CONFIG.google_api_key.get_secret_value(), CONFIG.google_cx.get_secret_value())
         gis.search(params)
     except Exception as err:
-        logging.exception(err)
+        logging.exception(err, exc_info=False)
         return []
     else:
         results = []

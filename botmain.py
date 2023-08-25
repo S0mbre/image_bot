@@ -11,9 +11,11 @@ from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import StatesGroup, State
 from aiogram.fsm.storage.memory import MemoryStorage
 from aiogram.utils.chat_action import ChatActionMiddleware, ChatActionSender
+from io import BytesIO
 
 from config import CONFIG
 import imgsearch
+import imgcap
 
 # ============================================================ #
 
@@ -158,12 +160,27 @@ async def search_images_process_query_callback(callback: CallbackQuery, state: F
 # ================ 3 - ПОИСК ТЕКСТА ПО КАРТИНКЕ
 
 @dp.message(MyStates.start_state, F.photo)
-async def search_txt_by_image(message: Message, state: FSMContext):
+async def image_get_summary(message: Message, state: FSMContext, bot: Bot):
     await state.clear()
-    await state.set_state(MyStates.search_state)
-    await state.update_data({'q': message.text})
-    await message.answer('❓ Сколько картинок найти?', 
-                         reply_markup=make_keyboard(BTNS_NUMBER_IMAGES))
+    await state.set_state(MyStates.img_search_state)
+    await message.answer(f'⌛ Подожди секуд 10-30 ...', 
+                            reply_markup=ReplyKeyboardRemove())
+    my_bytes_io = BytesIO()
+    summary = ''
+    try:
+        await bot.download(message.photo[-1], destination=my_bytes_io)
+        imcap = imgcap.Imgcap(my_bytes_io)
+        summary = await imcap.summary(3)
+    finally:
+        my_bytes_io.close()
+
+    await state.clear()
+    await state.set_state(MyStates.start_state)
+
+    if summary:
+        await message.answer('. '.join(summary), reply_markup=ReplyKeyboardRemove())
+    else:
+        await message.answer('🤔 Описание не найдено', reply_markup=ReplyKeyboardRemove())
 
 # ============================================================ #
 
