@@ -1,6 +1,6 @@
 import torch
 from PIL import Image
-from typing import Union, BinaryIO, Optional
+from typing import Union, BinaryIO, Optional, List
 from lavis.models import load_model_and_preprocess
 import os
 import logging
@@ -46,17 +46,18 @@ class Imgcap:
             self._vqa_image = self._vqa_vis_processors['eval'](self.image).unsqueeze(0).to(self._device)
             logging.debug('Imgcap: Изображение загружено в память')
 
-    async def translate(self, texts: Union[str, list[str]]) -> list[str]:
+    async def translate(self, texts: Union[str, List[str]], 
+                        fromlang: Optional[str] = 'en', tolang: Optional[str] = 'ru') -> List[str]:
         async with Translator() as tr:
-            results = await tr.translate(texts, 'ru', 'en')
+            results = await tr.translate(texts, tolang or 'ru', fromlang)
         return results
     
-    def capitalize(self, results: Union[str, list[str]]) -> list[str]:
+    def capitalize(self, results: Union[str, List[str]]) -> List[str]:
         if isinstance(results, str):
             results = [results]
         return [s.capitalize() for s in results]
 
-    async def summary(self, number: int = 1) -> list[str]:
+    async def summary(self, number: int = 1) -> List[str]:
         logging.info('Imgcap: Генерация описания для изображения ...')
         results = self._cap_model.generate({'image': self._cap_image}, use_nucleus_sampling=True, num_captions=number)
         logging.info(f'Imgcap: Описания сгенерированы: {repr(results)}')
@@ -65,7 +66,12 @@ class Imgcap:
         logging.info(f'Imgcap: Описания переведены: {repr(results)}')
         return results
     
-    async def answer(self, question: str) -> str:
+    async def answer(self, question: str, lang: Optional[str] = None) -> str:
+        if not lang is None and lang != 'en':
+            logging.info(f'Imgcap: Перевод вопроса "{question}" ...')
+            question = await self.translate(question, lang, 'en')
+            question = question[0]
+            logging.info(f'Imgcap: Вопрос переведен: "{question}"')
         logging.info(f'Imgcap: Генерация ответа на вопрос "{question}" ...')
         q = self._vqa_txt_processors['eval'](question)
         samples = {'image': self._vqa_image, 'text_input': q}
@@ -80,13 +86,13 @@ class Imgcap:
     
 # ============================================================ #
 
-import asyncio
+# import asyncio
 
-async def main():
-    p = r'c:\И\аэаэ\06.JPG'
-    imcap = Imgcap(p)
-    summary = await imcap.summary(3)
-    print(summary)
+# async def main():
+#     p = r'c:\И\аэаэ\06.JPG'
+#     imcap = Imgcap(p)
+#     summary = await imcap.summary(3)
+#     print(summary)
 
-if __name__ == '__main__':
-    asyncio.run(main())
+# if __name__ == '__main__':
+#     asyncio.run(main())
