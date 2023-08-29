@@ -27,12 +27,12 @@ class Gfile(BaseModel):
 
 class Gdrive:
 
-    def __init__(self):
-        logging.debug('Gdrive: Создание объекта ...')
+    def update_creds(self):
+        logging.debug('Gdrive: Получение ключа аутентификации ...')
         gauth = GoogleAuth()
         gauth.credentials = ServiceAccountCredentials.from_json_keyfile_name(GOOGLE_SECRETS, GOOGLE_SCOPE)
         self._gdrive = GoogleDrive(gauth)
-        logging.debug('Gdrive: Объект создан')
+        logging.debug('Gdrive: Ключ аутентификации получен')
 
     @staticmethod
     def generate_uid():
@@ -99,6 +99,7 @@ class Gdrive:
         return (name + ext, content_type, content or file)
 
     async def upload(self, file: Union[str, bytes], replace_id: Optional[str] = None, mimetype: Optional[str] = None) -> Gfile:
+        self.update_creds()
         logging.debug('Gdrive: Загрузка файла ...')
         fname, mime, content = await Gdrive.get_file_name_and_content(file)
         f = self._gdrive.CreateFile({'id': replace_id} if replace_id else {'title': fname})
@@ -114,6 +115,7 @@ class Gdrive:
         return filemodel
 
     async def delete(self, file_id: str, permanent: bool = True):
+        self.update_creds()
         logging.debug(f'Gdrive: Удаление файла {file_id} ...')
         f = self._gdrive.CreateFile({'id': file_id})
         if permanent:
@@ -123,6 +125,7 @@ class Gdrive:
         logging.debug(f'Gdrive: Удаление файла {file_id} - ГОТОВО')
 
     async def getmeta(self, file_id: str) -> dict:
+        self.update_creds()
         f = self._gdrive.CreateFile({'id': file_id})
         f.FetchMetadata(fetch_all=True)
         meta = f.metadata
@@ -133,6 +136,7 @@ class Gdrive:
         return f'https://drive.google.com/uc?id={file_id}&export=download'
 
     async def download(self, file_id: str, filetype: str = 'bytes'):
+        self.update_creds()
         f = self._gdrive.CreateFile({'id': file_id})
         f.FetchContent()
         if filetype == 'file':
