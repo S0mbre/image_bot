@@ -182,7 +182,7 @@ async def image_load(message: Message, state: FSMContext, bot: Bot):
         finally:
             my_bytes_io.close()
 
-        await message.answer('❓ Что делаем дальше?                  ', 
+        await message.answer('❓ Что делаем дальше?                  -', 
                             reply_markup=make_keyboard_inline([{'text': s, 'callback_data': s} for s in BTNS_IMG_ACTIONS], 3))
 
 # ================ 4 - ПОЛУЧЕНИЕ ОПИСАНИЯ ИЛИ ОТВЕТ НА ВОПРОС К КАРТИНКЕ
@@ -211,7 +211,7 @@ async def image_process_action(callback: CallbackQuery, state: FSMContext, bot: 
             imcap = data['imcap']
             summary = await imcap.summary(3)
             await callback.message.answer('. '.join(summary) if summary else '🤔 Описание не найдено', reply_markup=ReplyKeyboardRemove())
-            await callback.message.answer('❓ Еще что-то?                          ', 
+            await callback.message.answer('❓ Еще что-то?                          -', 
                                           reply_markup=make_keyboard_inline([{'text': s, 'callback_data': s} for s in BTNS_IMG_ACTIONS], 3))
             await callback.answer()
             return
@@ -253,7 +253,7 @@ async def image_process_action(callback: CallbackQuery, state: FSMContext, bot: 
                     sreply += f'Найдено {len(result.similar)} похожих изображений'
                 await callback.message.answer(sreply, 
                                               reply_markup=make_keyboard_inline([{'text': '🔺 Открыть ссылку', 'url': result.url}], 1))
-                await callback.message.answer('❓ Еще что-то?                          ', 
+                await callback.message.answer('❓ Еще что-то?                          -', 
                                               reply_markup=make_keyboard_inline([{'text': s, 'callback_data': s} for s in BTNS_IMG_ACTIONS], 3))
                 await callback.answer()
                 return
@@ -282,7 +282,7 @@ async def image_answer(message: Message, state: FSMContext, bot: Bot):
         answer = await imcap.answer(message.text, 'ru')
         await message.answer(answer or '🤔 Ответ не найден', reply_markup=ReplyKeyboardRemove())
         await state.set_state(MyStates.img_load_state)
-        await message.answer('❓ Еще что-то?                          ', 
+        await message.answer('❓ Еще что-то?                          -', 
                              reply_markup=make_keyboard_inline([{'text': s, 'callback_data': s} for s in BTNS_IMG_ACTIONS], 3))
 
 
