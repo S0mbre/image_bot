@@ -1,3 +1,6 @@
+import platform
+IS_LINUX = (platform.system() == 'Linux')
+
 import logging
 import asyncio
 import re
@@ -10,6 +13,8 @@ from aiogram.types import (ReplyKeyboardMarkup, InlineKeyboardMarkup, KeyboardBu
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import StatesGroup, State
 from aiogram.fsm.storage.memory import MemoryStorage
+if IS_LINUX:
+    from aiogram.fsm.storage.redis import RedisStorage
 from aiogram.utils.chat_action import ChatActionMiddleware, ChatActionSender
 from io import BytesIO
 
@@ -27,7 +32,7 @@ BOT_HELP = \
 """
 
 BTNS_NUMBER_IMAGES = ['1', '3', '5', '7', '10', '15', '20', '30', '40', '50', '❌ Отмена']
-BTNS_IMG_ACTIONS = ['✍\nОписание', '❓\nВопрос', '👥\nПохожие', '❌ Отмена']
+BTNS_IMG_ACTIONS = ['✍ Описание', '❓ Вопрос', '👥 Похожие', '❌ Отмена']
 NL = '\n'
 INFLECT_REPLY = {'1': 'картинка', '2': 'картинки', '3': 'картинки', '4': 'картинки'}
 
@@ -36,7 +41,11 @@ INFLECT_REPLY = {'1': 'картинка', '2': 'картинки', '3': 'кар�
 logging.basicConfig(level=logging.INFO)
 
 bot = Bot(token=CONFIG.bot_token.get_secret_value())
-dp = Dispatcher(storage=MemoryStorage())
+if IS_LINUX:
+    storage = RedisStorage.from_url(CONFIG.redis)
+else:
+    storage = MemoryStorage()
+dp = Dispatcher(storage=storage)
 dp.message.middleware(ChatActionMiddleware())
 
 # ============================================================ #
@@ -182,7 +191,7 @@ async def image_load(message: Message, state: FSMContext, bot: Bot):
         finally:
             my_bytes_io.close()
 
-        await message.answer('❓ Что делаем дальше?                        -', 
+        await message.answer('❓ Что делаем дальше?                        ❓', 
                             reply_markup=make_keyboard_inline([{'text': s, 'callback_data': s} for s in BTNS_IMG_ACTIONS], 3))
 
 # ================ 4 - ПОЛУЧЕНИЕ ОПИСАНИЯ ИЛИ ОТВЕТ НА ВОПРОС К КАРТИНКЕ
@@ -211,7 +220,7 @@ async def image_process_action(callback: CallbackQuery, state: FSMContext, bot: 
             imcap = data['imcap']
             summary = await imcap.summary(3)
             await callback.message.answer('. '.join(summary) if summary else '🤔 Описание не найдено', reply_markup=ReplyKeyboardRemove())
-            await callback.message.answer('❓ Еще что-то?                                         -', 
+            await callback.message.answer('❓ Еще что-то?                                         ❓', 
                                           reply_markup=make_keyboard_inline([{'text': s, 'callback_data': s} for s in BTNS_IMG_ACTIONS], 3))
             await callback.answer()
             return
@@ -253,7 +262,7 @@ async def image_process_action(callback: CallbackQuery, state: FSMContext, bot: 
                     sreply += f'Найдено {len(result.similar)} похожих изображений'
                 await callback.message.answer(sreply, 
                                               reply_markup=make_keyboard_inline([{'text': '🔺 Открыть ссылку', 'url': result.url}], 1))
-                await callback.message.answer('❓ Еще что-то?                                         -', 
+                await callback.message.answer('❓ Еще что-то?                                         ❓', 
                                               reply_markup=make_keyboard_inline([{'text': s, 'callback_data': s} for s in BTNS_IMG_ACTIONS], 3))
                 await callback.answer()
                 return
@@ -282,7 +291,7 @@ async def image_answer(message: Message, state: FSMContext, bot: Bot):
         answer = await imcap.answer(message.text, 'ru')
         await message.answer(answer or '🤔 Ответ не найден', reply_markup=ReplyKeyboardRemove())
         await state.set_state(MyStates.img_load_state)
-        await message.answer('❓ Еще что-то?                                         -', 
+        await message.answer('❓ Еще что-то?                                         ❓', 
                              reply_markup=make_keyboard_inline([{'text': s, 'callback_data': s} for s in BTNS_IMG_ACTIONS], 3))
 
 

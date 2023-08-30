@@ -2,6 +2,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 from pydantic import SecretStr
 import logging
 from pathlib import Path
+from typing import Optional
 
 # ============================================================ #
 
@@ -10,12 +11,13 @@ ENC = 'utf-8'
 # ============================================================ #
 
 class Settings(BaseSettings):
-    debug: bool
+    debug: Optional[bool] = False
     bot_token: SecretStr
     bot_name: str
     google_cx: SecretStr
     google_api_key: SecretStr
     yandex_api_key: SecretStr
+    redis: Optional[str] = 'redis://localhost'
 
     model_config = SettingsConfigDict(env_file='.env', env_file_encoding=ENC)
 
