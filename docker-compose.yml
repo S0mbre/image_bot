@@ -24,8 +24,8 @@ services:
     networks:
       - default
     environment:
-      - REDIS_HOST: redis
-      - REDIS_PORT: 6379
+      - REDIS_HOST: "redis"
+      - REDIS_PORT: "6379"
     command: "python botmain.py"
 
 networks:
