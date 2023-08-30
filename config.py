@@ -12,12 +12,12 @@ ENC = 'utf-8'
 
 class Settings(BaseSettings):
     debug: Optional[bool] = False
+    redis: Optional[bool] = False
     bot_token: SecretStr
     bot_name: str
     google_cx: SecretStr
     google_api_key: SecretStr
     yandex_api_key: SecretStr
-    redis: Optional[str] = 'redis://localhost'
 
     model_config = SettingsConfigDict(env_file='.env', env_file_encoding=ENC)
 

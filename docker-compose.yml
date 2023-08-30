@@ -18,14 +18,11 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    restart: always
+    restart: on-failure
     depends_on:
       - redis
     networks:
       - default
-    environment:
-      - REDIS_HOST: "redis"
-      - REDIS_PORT: "6379"
     command: "python botmain.py"
 
 networks:

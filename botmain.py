@@ -41,8 +41,8 @@ INFLECT_REPLY = {'1': 'картинка', '2': 'картинки', '3': 'кар�
 logging.basicConfig(level=logging.INFO)
 
 bot = Bot(token=CONFIG.bot_token.get_secret_value())
-if IS_LINUX:
-    storage = RedisStorage.from_url(CONFIG.redis)
+if IS_LINUX and CONFIG.redis:
+    storage = RedisStorage.from_url('redis://redis:6379')
 else:
     storage = MemoryStorage()
 dp = Dispatcher(storage=storage)
