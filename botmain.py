@@ -131,7 +131,7 @@ async def process_image_search(q: str, state: FSMContext, message: Message = Non
 async def search_images_get_query(message: Message, state: FSMContext):
     await state.clear()
     await state.set_state(MyStates.search_state)
-    await state.update_data({'q': message.text})
+    await state.update_data(q=message.text)
     await message.answer(f'❓ Сколько картинок найти (от 1 до {imgsearch.MAX_NUMBER})?{NL}Нажми или отправь "отмена" для отмены поиска.', 
                          reply_markup=make_keyboard_inline([{'text': s, 'callback_data': s} for s in BTNS_NUMBER_IMAGES], 5))
     
@@ -182,7 +182,7 @@ async def image_load(message: Message, state: FSMContext, bot: Bot):
 
         try:
             my_bytes_io: BytesIO = await bot.download(message.photo[-1])
-            await state.update_data({'pic': my_bytes_io.getvalue()})
+            await state.update_data(pic=my_bytes_io.getvalue())
         except Exception as err:
             await state.clear()
             await state.set_state(MyStates.start_state)
@@ -214,7 +214,7 @@ async def image_process_action(callback: CallbackQuery, state: FSMContext, bot: 
             await callback.message.answer(f'⏳ Чуточку подождём (до 3 минут) ...', reply_markup=ReplyKeyboardRemove())
             if not 'imcap' in data:
                 bio = BytesIO(pic)
-                await state.update_data({'imcap': imgcap.Imgcap(bio)})
+                await state.update_data(imcap=imgcap.Imgcap(bio))
                 bio.close()
                 data = await state.get_data()
             imcap = data['imcap']
@@ -229,13 +229,13 @@ async def image_process_action(callback: CallbackQuery, state: FSMContext, bot: 
             if not 'imcap' in data:
                 await callback.message.answer(f'⏳ Пять сек ...', reply_markup=ReplyKeyboardRemove())
                 bio = BytesIO(pic)
-                await state.update_data({'imcap': imgcap.Imgcap(bio)})
+                await state.update_data(imcap=imgcap.Imgcap(bio))
                 bio.close()
                 data = await state.get_data()
             imcap = data['imcap']
             await callback.message.answer('Задай свой вопрос 👇', reply_markup=ReplyKeyboardRemove())
             await state.set_state(MyStates.img_question_state)
-            await state.update_data({'imcap': imcap})
+            await state.update_data(imcap=imcap)
             await callback.answer()
             return
 
