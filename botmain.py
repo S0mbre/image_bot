@@ -124,8 +124,8 @@ async def process_image_search(q: str, state: FSMContext, message: Message = Non
     try:
         num = int(msg.text if message else callback.data)
     except ValueError:
-        await message.answer('⛔ Надо указать ЧИСЛО картинок, например 3', 
-                            reply_markup=ReplyKeyboardRemove())
+        await msg.answer('⛔ Надо указать ЧИСЛО картинок, например 3', 
+                         reply_markup=ReplyKeyboardRemove())
         return
 
     if num < 1:

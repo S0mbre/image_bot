@@ -1,5 +1,5 @@
 pip-system-certs
-aiogram>=3.0.0rc2
+aiogram==3.0.0rc2
 pydantic-settings
 windows-curses; platform_system == 'Windows'
 redis; platform_system == 'Linux'

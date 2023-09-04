@@ -1,0 +1,17 @@
+#/etc/systemd/system/imagebot.service
+
+[Unit]
+Description=ImageBot Docker Service
+Requires=docker.service
+After=docker.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+WorkingDirectory=/root/projects/image_bot
+ExecStart=/usr/bin/docker-compose up -d
+ExecStop=/usr/bin/bash -c 'docker stop imagebot redis'
+TimeoutStartSec=0
+
+[Install]
+WantedBy=multi-user.target
