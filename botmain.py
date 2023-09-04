@@ -4,6 +4,7 @@ IS_LINUX = (platform.system() == 'Linux')
 import logging
 import asyncio
 import re
+import gc
 from aiogram import Bot, Dispatcher, F
 from aiogram.filters import Command
 # from aiogram.utils import markdown as md
@@ -27,14 +28,15 @@ import imgsimilar
 
 BOT_HELP = \
 """
-Отправь описание картинки, например "жёлтый экскаватор", бот вернёт картинки (от 1 до 50). 
-Отправь боту картинку, бот вернёт её описание.
+Отправь описание картинки, например "жёлтый экскаватор", бот найдёт картинки. 
+Отправь боту картинку, бот вернёт её описание, ответит на вопрос или найдёт похожие!
 """
 
 BTNS_NUMBER_IMAGES = ['1', '3', '5', '7', '10', '15', '20', '30', '40', '50', '❌ Отмена']
 BTNS_IMG_ACTIONS = ['✍ Описание', '❓ Вопрос', '👥 Похожие', '❌ Отмена']
 NL = '\n'
 INFLECT_REPLY = {'1': 'картинка', '2': 'картинки', '3': 'картинки', '4': 'картинки'}
+REDIS_URL = 'redis://redis:6379'
 
 # ============================================================ #
 
@@ -42,7 +44,7 @@ logging.basicConfig(level=logging.INFO)
 
 bot = Bot(token=CONFIG.bot_token.get_secret_value())
 if IS_LINUX and CONFIG.redis:
-    storage = RedisStorage.from_url('redis://redis:6379')
+    storage = RedisStorage.from_url(REDIS_URL)
 else:
     storage = MemoryStorage()
 dp = Dispatcher(storage=storage)
@@ -54,9 +56,7 @@ class MyStates(StatesGroup):
     start_state = State()
     search_state = State()
     img_load_state = State()
-    # img_summary_state = State()
     img_question_state = State()
-    # img_findsimilar_state = State()
 
 # ============================================================ #
 
@@ -76,6 +76,21 @@ def inflect_num(num: int) -> str:
     last = str(num)[-1]
     return INFLECT_REPLY.get(last, 'картинок')
 
+async def download_file(callback: CallbackQuery, message: Message, state: FSMContext, bot: Bot, file_id: str) -> BytesIO:
+    msg = message or callback.message
+    await msg.answer(f'⏳ Загрузка изображения ...', reply_markup=ReplyKeyboardRemove())
+    try:
+        return await bot.download(file_id)
+    except Exception as err:
+        logging.debug(err, exc_info=True)
+        await state.clear()
+        await state.set_state(MyStates.start_state)
+        await msg.answer('⛔ Ошибка загрузки картинки, попобуй загрузить заново', 
+                                        reply_markup=ReplyKeyboardRemove())
+        if not callback is None:
+            await callback.answer()
+        return None
+        
 # ================ 1 - СТАРТ
 
 @dp.message(Command(commands=['start', 'help']))
@@ -178,19 +193,8 @@ async def image_load(message: Message, state: FSMContext, bot: Bot):
     async with ChatActionSender.typing(bot=bot, chat_id=message.chat.id, interval=2.0):
         await state.clear()
         await state.set_state(MyStates.img_load_state)
-        await message.answer(f'⏳ Пять сек, загружаю картинку ...', reply_markup=ReplyKeyboardRemove())
-
-        try:
-            my_bytes_io: BytesIO = await bot.download(message.photo[-1])
-            await state.update_data(pic=my_bytes_io.getvalue())
-        except Exception as err:
-            await state.clear()
-            await state.set_state(MyStates.start_state)
-            await message.answer(f'⛔ {str(err)}', reply_markup=ReplyKeyboardRemove())
-            return
-        finally:
-            my_bytes_io.close()
-
+        # await message.answer(f'⏳ Пять сек, загружаю картинку ...', reply_markup=ReplyKeyboardRemove())
+        await state.update_data(pic=message.photo[-1].file_id)
         await message.answer('❓ Что делаем дальше?                        ❓', 
                             reply_markup=make_keyboard_inline([{'text': s, 'callback_data': s} for s in BTNS_IMG_ACTIONS], 3))
 
@@ -207,43 +211,53 @@ async def image_process_action(callback: CallbackQuery, state: FSMContext, bot: 
                                           reply_markup=ReplyKeyboardRemove())
             await callback.answer()
             return
-        
-        pic: bytes = data['pic']
 
         if callback.data.endswith('писание'):
-            await callback.message.answer(f'⏳ Чуточку подождём (до 3 минут) ...', reply_markup=ReplyKeyboardRemove())
-            if not 'imcap' in data:
-                bio = BytesIO(pic)
-                await state.update_data(imcap=imgcap.Imgcap(bio))
-                bio.close()
-                data = await state.get_data()
-            imcap = data['imcap']
+
+            pic = await download_file(callback, None, state, bot, data['pic'])
+            if pic is None: return
+
+            try:
+                imcap = imgcap.Imgcap(pic)
+            except Exception as err:
+                logging.debug(err, exc_info=True)
+                await state.clear()
+                await state.set_state(MyStates.start_state)
+                await callback.message.answer('⛔ Ошибка загрузки картинки, попобуй загрузить заново', 
+                                              reply_markup=ReplyKeyboardRemove())
+                await callback.answer()
+                pic.close()
+                del pic
+                gc.collect(0)
+                return
+
             summary = await imcap.summary(3)
             await callback.message.answer('. '.join(summary) if summary else '🤔 Описание не найдено', reply_markup=ReplyKeyboardRemove())
             await callback.message.answer('❓ Еще что-то?                                         ❓', 
                                           reply_markup=make_keyboard_inline([{'text': s, 'callback_data': s} for s in BTNS_IMG_ACTIONS], 3))
             await callback.answer()
+            pic.close()
+            del pic
+            del imcap
+            gc.collect(0)
             return
 
         elif callback.data.endswith('опрос'):
-            if not 'imcap' in data:
-                await callback.message.answer(f'⏳ Пять сек ...', reply_markup=ReplyKeyboardRemove())
-                bio = BytesIO(pic)
-                await state.update_data(imcap=imgcap.Imgcap(bio))
-                bio.close()
-                data = await state.get_data()
-            imcap = data['imcap']
+
             await callback.message.answer('Задай свой вопрос 👇', reply_markup=ReplyKeyboardRemove())
             await state.set_state(MyStates.img_question_state)
-            await state.update_data(imcap=imcap)
+            await state.update_data(pic=data['pic'])
             await callback.answer()
             return
 
         elif callback.data.endswith('охожие'):
-            await callback.message.answer(f'⏳ Чуточку подождём (до 3 минут) ...', reply_markup=ReplyKeyboardRemove())
+
+            pic = await download_file(callback, None, state, bot, data['pic'])
+            if pic is None: return
+
             try:
                 imsim = imgsimilar.Imgsimilar()            
-                result: imgsimilar.SimilarResult = await imsim.upload_and_parse(data['pic'])
+                result: imgsimilar.SimilarResult = await imsim.upload_and_parse(pic.getvalue())
             except Exception as err:
                 logging.debug(err, exc_info=True)
                 await state.clear()
@@ -251,6 +265,9 @@ async def image_process_action(callback: CallbackQuery, state: FSMContext, bot: 
                 await callback.message.answer('⛔ Ошибка при поиске похожих картинок', 
                                               reply_markup=ReplyKeyboardRemove())
                 await callback.answer()
+                pic.close()
+                del pic
+                gc.collect(0)
                 return
             else:
                 sreply = ''
@@ -265,8 +282,12 @@ async def image_process_action(callback: CallbackQuery, state: FSMContext, bot: 
                 await callback.message.answer('❓ Еще что-то?                                         ❓', 
                                               reply_markup=make_keyboard_inline([{'text': s, 'callback_data': s} for s in BTNS_IMG_ACTIONS], 3))
                 await callback.answer()
+                pic.close()
+                del pic
+                del imsim
+                gc.collect(0)
                 return
-        
+
         await state.clear()
         await state.set_state(MyStates.start_state)
         await callback.message.answer('🤷 Нет так нет...', reply_markup=ReplyKeyboardRemove())
@@ -278,21 +299,32 @@ async def image_process_action(callback: CallbackQuery, state: FSMContext, bot: 
 async def image_answer(message: Message, state: FSMContext, bot: Bot):
     async with ChatActionSender.typing(bot=bot, chat_id=message.chat.id, interval=2.0):
         data = await state.get_data()
-        if not 'imcap' in data:
+        if not 'pic' in data:
             await state.clear()
             await state.set_state(MyStates.start_state)
             await message.answer('⛔ Изображение не сохранено, попробуй загрузить заново', 
                                  reply_markup=ReplyKeyboardRemove())
             return
         
-        imcap: imgcap.Imgcap = data['imcap']
-
-        await message.answer(f'⏳ Чуточку подождём (до 3 минут) ...', reply_markup=ReplyKeyboardRemove())
-        answer = await imcap.answer(message.text, 'ru')
-        await message.answer(answer or '🤔 Ответ не найден', reply_markup=ReplyKeyboardRemove())
+        pic = await download_file(None, message, state, bot, data['pic'])
+        if pic is None: return
+        
+        try:
+            imcap = imgcap.Imgcap(pic)
+        except Exception as err:
+            logging.debug(err, exc_info=True)
+            await message.answer('⛔ Ошибка загрузки картинки, попобуй загрузить заново', 
+                                 reply_markup=ReplyKeyboardRemove())
+        else:
+            await message.answer(f'⏳ Чуточку подождём (до 3 минут) ...', reply_markup=ReplyKeyboardRemove())
+            answer = await imcap.answer(message.text, 'ru')
+            await message.answer(answer or '🤔 Ответ не найден', reply_markup=ReplyKeyboardRemove())
+        
+        pic.close()
         await state.set_state(MyStates.img_load_state)
         await message.answer('❓ Еще что-то?                                         ❓', 
                              reply_markup=make_keyboard_inline([{'text': s, 'callback_data': s} for s in BTNS_IMG_ACTIONS], 3))
+        gc.collect(0)
 
 
 # ============================================================ #
