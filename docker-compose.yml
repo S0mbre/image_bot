@@ -23,6 +23,8 @@ services:
       - redis
     networks:
       - default
+    volumes: 
+      - modelcache:/root/.cache/torch/hub/checkpoints
     command: "python botmain.py"
 
 networks:
@@ -31,3 +33,4 @@ networks:
 
 volumes:
   cache:
+  modelcache:
