@@ -12,7 +12,7 @@ ENC = 'utf-8'
 
 class Settings(BaseSettings):
     debug: Optional[bool] = False
-    redis: Optional[bool] = False
+    redis: Optional[bool] = True
     bot_token: SecretStr
     bot_name: str
     google_cx: SecretStr

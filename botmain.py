@@ -85,7 +85,7 @@ async def download_file(callback: CallbackQuery, message: Message, state: FSMCon
         logging.debug(err, exc_info=True)
         await state.clear()
         await state.set_state(MyStates.start_state)
-        await msg.answer('⛔ Ошибка загрузки картинки, попобуй загрузить заново', 
+        await msg.answer('⛔ Ошибка загрузки картинки, попробуй загрузить заново', 
                                         reply_markup=ReplyKeyboardRemove())
         if not callback is None:
             await callback.answer()
@@ -223,7 +223,7 @@ async def image_process_action(callback: CallbackQuery, state: FSMContext, bot: 
                 logging.debug(err, exc_info=True)
                 await state.clear()
                 await state.set_state(MyStates.start_state)
-                await callback.message.answer('⛔ Ошибка загрузки картинки, попобуй загрузить заново', 
+                await callback.message.answer('⛔ Ошибка загрузки картинки, попробуй загрузить заново', 
                                               reply_markup=ReplyKeyboardRemove())
                 await callback.answer()
                 pic.close()
@@ -313,7 +313,7 @@ async def image_answer(message: Message, state: FSMContext, bot: Bot):
             imcap = imgcap.Imgcap(pic)
         except Exception as err:
             logging.debug(err, exc_info=True)
-            await message.answer('⛔ Ошибка загрузки картинки, попобуй загрузить заново', 
+            await message.answer('⛔ Ошибка загрузки картинки, попробуй загрузить заново', 
                                  reply_markup=ReplyKeyboardRemove())
         else:
             await message.answer(f'⏳ Чуточку подождём (до 3 минут) ...', reply_markup=ReplyKeyboardRemove())
