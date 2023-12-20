@@ -5,7 +5,7 @@ import logging
 import asyncio
 import re
 import gc
-from aiogram import Bot, Dispatcher, F
+from aiogram import Bot, Dispatcher, Router, F
 from aiogram.filters import Command
 # from aiogram.utils import markdown as md
 from aiogram.utils.keyboard import ReplyKeyboardBuilder, InlineKeyboardBuilder
@@ -18,6 +18,8 @@ if IS_LINUX:
     from aiogram.fsm.storage.redis import RedisStorage
 from aiogram.utils.chat_action import ChatActionMiddleware, ChatActionSender
 from io import BytesIO
+from aiohttp import web
+from aiogram.webhook.aiohttp_server import SimpleRequestHandler, setup_application
 
 from config import CONFIG
 import imgsearch
@@ -38,17 +40,14 @@ NL = '\n'
 INFLECT_REPLY = {'1': 'картинка', '2': 'картинки', '3': 'картинки', '4': 'картинки'}
 REDIS_URL = 'redis://redis:6379'
 
+WEB_SERVER_HOST = '127.0.0.1'
+WEB_SERVER_PORT = 8080
+WEBHOOK_PATH = '/imagebot-webhook'
+
 # ============================================================ #
 
 logging.basicConfig(level=logging.INFO)
-
-bot = Bot(token=CONFIG.bot_token.get_secret_value())
-if IS_LINUX and CONFIG.redis:
-    storage = RedisStorage.from_url(REDIS_URL)
-else:
-    storage = MemoryStorage()
-dp = Dispatcher(storage=storage)
-dp.message.middleware(ChatActionMiddleware())
+router = Router()
 
 # ============================================================ #
 
@@ -93,7 +92,7 @@ async def download_file(callback: CallbackQuery, message: Message, state: FSMCon
         
 # ================ 1 - СТАРТ
 
-@dp.message(Command(commands=['start', 'help']))
+@router.message(Command(commands=['start', 'help']))
 async def start(message: Message, state: FSMContext):
     if message.text != '/help':
         await state.clear()
@@ -142,7 +141,7 @@ async def process_image_search(q: str, state: FSMContext, message: Message = Non
     
     await send_images(q, num, msg, state)
 
-@dp.message(MyStates.start_state, F.text)
+@router.message(MyStates.start_state, F.text)
 async def search_images_get_query(message: Message, state: FSMContext):
     await state.clear()
     await state.set_state(MyStates.search_state)
@@ -150,7 +149,7 @@ async def search_images_get_query(message: Message, state: FSMContext):
     await message.answer(f'❓ Сколько картинок найти (от 1 до {imgsearch.MAX_NUMBER})?{NL}Нажми или отправь "отмена" для отмены поиска.', 
                          reply_markup=make_keyboard_inline([{'text': s, 'callback_data': s} for s in BTNS_NUMBER_IMAGES], 5))
     
-@dp.message(MyStates.search_state, F.text.regexp(r'(\d+)|(.*отмена)', flags=re.I))
+@router.message(MyStates.search_state, F.text.regexp(r'(\d+)|(.*отмена)', flags=re.I))
 async def search_images_process_query(message: Message, state: FSMContext, bot: Bot):    
     async with ChatActionSender.typing(bot=bot, chat_id=message.chat.id, interval=2.0):
         data = await state.get_data()
@@ -167,7 +166,7 @@ async def search_images_process_query(message: Message, state: FSMContext, bot: 
         else:
             await process_image_search(data['q'], state, message)
 
-@dp.callback_query(MyStates.search_state, F.data.regexp(r'(\d+)|(.*отмена)', flags=re.I))
+@router.callback_query(MyStates.search_state, F.data.regexp(r'(\d+)|(.*отмена)', flags=re.I))
 async def search_images_process_query_callback(callback: CallbackQuery, state: FSMContext, bot: Bot):    
     async with ChatActionSender.typing(bot=bot, chat_id=callback.message.chat.id, interval=2.0):
         data = await state.get_data()
@@ -188,7 +187,7 @@ async def search_images_process_query_callback(callback: CallbackQuery, state: F
 
 # ================ 3 - ЗАГРУЗКА КАРТИНКИ
 
-@dp.message(MyStates.start_state, F.photo)
+@router.message(MyStates.start_state, F.photo)
 async def image_load(message: Message, state: FSMContext, bot: Bot):
     async with ChatActionSender.typing(bot=bot, chat_id=message.chat.id, interval=2.0):
         await state.clear()
@@ -200,7 +199,7 @@ async def image_load(message: Message, state: FSMContext, bot: Bot):
 
 # ================ 4 - ПОЛУЧЕНИЕ ОПИСАНИЯ ИЛИ ОТВЕТ НА ВОПРОС К КАРТИНКЕ
 
-@dp.callback_query(MyStates.img_load_state, F.data.in_(BTNS_IMG_ACTIONS))
+@router.callback_query(MyStates.img_load_state, F.data.in_(BTNS_IMG_ACTIONS))
 async def image_process_action(callback: CallbackQuery, state: FSMContext, bot: Bot):
     async with ChatActionSender.typing(bot=bot, chat_id=callback.message.chat.id, interval=2.0):
         data = await state.get_data()
@@ -295,7 +294,7 @@ async def image_process_action(callback: CallbackQuery, state: FSMContext, bot: 
 
 # ================ 5 - ОТВЕТ НА ВОПРОС К КАРТИНКЕ
 
-@dp.message(MyStates.img_question_state, F.text)
+@router.message(MyStates.img_question_state, F.text)
 async def image_answer(message: Message, state: FSMContext, bot: Bot):
     async with ChatActionSender.typing(bot=bot, chat_id=message.chat.id, interval=2.0):
         data = await state.get_data()
@@ -328,9 +327,32 @@ async def image_answer(message: Message, state: FSMContext, bot: Bot):
 
 
 # ============================================================ #
+        
+async def on_startup(bot: Bot) -> None:
+    await bot.set_webhook(f'{CONFIG.base_webhook_url}{WEBHOOK_PATH}', secret_token=CONFIG.webhook_secret.get_secret_value())
 
-async def main():
-    await dp.start_polling(bot, skip_updates=True)
+# ============================================================ #
 
-if __name__ == '__main__':
-    asyncio.run(main())
+def main():   
+    if IS_LINUX and CONFIG.redis:
+        storage = RedisStorage.from_url(REDIS_URL)
+    else:
+        storage = MemoryStorage()
+
+    dp = Dispatcher(storage=storage)
+    dp.message.middleware(ChatActionMiddleware())
+    dp.include_router(router)
+    dp.startup.register(on_startup)
+
+    bot = Bot(token=CONFIG.bot_token.get_secret_value())
+
+    app = web.Application()
+
+    webhook_requests_handler = SimpleRequestHandler(dispatcher=dp, bot=bot,secret_token=CONFIG.webhook_secret.get_secret_value())
+    webhook_requests_handler.register(app, path=WEBHOOK_PATH)
+
+    setup_application(app, dp, bot=bot)
+    web.run_app(app, host=WEB_SERVER_HOST, port=WEB_SERVER_PORT)
+
+if __name__ == '__main__':    
+    main()

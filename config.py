@@ -18,6 +18,8 @@ class Settings(BaseSettings):
     google_cx: SecretStr
     google_api_key: SecretStr
     yandex_api_key: SecretStr
+    webhook_secret: SecretStr
+    base_webhook_url: str
 
     model_config = SettingsConfigDict(env_file='.env', env_file_encoding=ENC)
 
